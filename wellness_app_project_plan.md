@@ -2,7 +2,7 @@
 **Project:** Elderly/Chronic Illness Wellness & Safety App  
 **Tech Stack:** React Native, Firebase (Auth, Firestore, Cloud Messaging), Cloud Functions  
 **Methodology:** Agile Kanban  
-**Solo Developer:** Mohamad  
+**duo Developer:** Mohamad & hassan 
 **Target Launch:** MVP to TestFlight/Beta in ~8 weeks
 
 ---
