@@ -1,0 +1,105 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function validRole(role) {
+      return role == "patient" || role == "caregiver";
+    }
+
+    function activeCaregiverLink(patientId, caregiverId) {
+      return exists(
+        /databases/$(database)/documents/caregiverLinks/$(patientId + "_" + caregiverId)
+      ) &&
+      get(
+        /databases/$(database)/documents/caregiverLinks/$(patientId + "_" + caregiverId)
+      ).data.status == "active";
+    }
+
+    function canReadPatient(patientId) {
+      return isOwner(patientId) || activeCaregiverLink(patientId, request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId)
+        && validRole(request.resource.data.role)
+        && request.resource.data.email == request.auth.token.email;
+
+      allow read: if isOwner(userId)
+        || (
+          resource.data.role == "patient"
+          && activeCaregiverLink(userId, request.auth.uid)
+        );
+
+      allow update: if isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email;
+
+      allow delete: if false;
+
+      match /medications/{medicationId} {
+        allow read: if canReadPatient(userId);
+        allow create, update, delete: if isOwner(userId);
+      }
+
+      match /moodLogs/{logId} {
+        allow read: if canReadPatient(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.mood is int
+          && request.resource.data.mood >= 1
+          && request.resource.data.mood <= 5;
+        allow update, delete: if isOwner(userId);
+      }
+
+      match /checkIns/{checkInId} {
+        allow read: if canReadPatient(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.status == "okay";
+        allow update, delete: if false;
+      }
+
+      match /devices/{deviceId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /caregiverLinks/{linkId} {
+      allow read: if signedIn()
+        && (
+          resource.data.patientId == request.auth.uid
+          || resource.data.caregiverId == request.auth.uid
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /pairingCodes/{code} {
+      allow read, write: if false;
+    }
+
+    match /alerts/{alertId} {
+      allow read: if signedIn()
+        && (
+          resource.data.patientId == request.auth.uid
+          || request.auth.uid in resource.data.caregiverIds
+        );
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.caregiverIds
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["status", "acknowledgedAt", "acknowledgedBy"]);
+
+      allow create, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

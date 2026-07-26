@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+android/
+ios/
+google-services.json
+GoogleService-Info.plist
+*.jks
+*.keystore
+.env.local
+.env.production
+functions/node_modules/
+firebase-debug.log
+.DS_Store
